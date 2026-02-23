@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # API Rest do Laravel
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: harpia_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www/html
+    env_file:
+      - ./backend/.env
+    # Roda o servidor de desenvolvimento nativo do Laravel
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    networks:
+      - harpia_network
+
+  # Worker de Filas para o Processamento Concorrente
+  queue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: harpia_queue
+    volumes:
+      - ./backend:/var/www/html
+    env_file:
+      - ./backend/.env
+    # Escuta a fila para disparar as chamadas do Firecrawl e Gemini
+    command: php artisan queue:work --tries=3 --timeout=120
+    depends_on:
+      - backend
+    networks:
+      - harpia_network
+
+  # Dashboard Angular
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: harpia_frontend
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Impede que os módulos locais sobrescrevam os do container
+    command: npm start -- --host 0.0.0.0
+    networks:
+      - harpia_network
+
+networks:
+  harpia_network:
+    driver: bridge
