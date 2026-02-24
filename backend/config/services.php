@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'firecrawl' => [
+        'key' => env('FIRECRAWL_API_KEY'),
+    ],
+
 ];
