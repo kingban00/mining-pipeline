@@ -10,7 +10,7 @@ class Company extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'status'];
 
     public function executives(): HasMany
     {
