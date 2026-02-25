@@ -20,6 +20,7 @@ export interface Asset {
 export interface Company {
     id: string;
     name: string;
+    status: 'processing' | 'completed' | 'rejected';
     created_at: string;
     executives?: Executive[];
     assets?: Asset[];
