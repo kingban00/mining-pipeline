@@ -15,23 +15,30 @@ services:
     command: php artisan serve --host=0.0.0.0 --port=8000
     networks:
       - harpia_network
+    depends_on:
+      db:
+        condition: service_healthy
 
   # Queue Worker for Concurrent Processing
   queue:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: harpia_queue
     restart: unless-stopped
     volumes:
       - ./backend:/var/www/html
     env_file:
       - ./backend/.env
     command: php artisan queue:work --queue=mining --tries=3 --timeout=300
-    depends_on:
-      - backend
+    deploy:
+      replicas: 3
     networks:
       - harpia_network
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
 
   # Angular Dashboard
   frontend:
@@ -47,6 +54,41 @@ services:
     command: npm start -- --host 0.0.0.0
     networks:
       - harpia_network
+
+  # Local Database (Eliminate Network Latency + pgvector support)
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: harpia_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mining_db
+      POSTGRES_USER: user_admin
+      POSTGRES_PASSWORD: password_secure
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user_admin -d mining_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - harpia_network
+
+  # Database UI (Visualizador Web)
+  adminer:
+    image: adminer
+    container_name: harpia_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - harpia_network
+
+volumes:
+  postgres_data:
+
 
 networks:
   harpia_network:

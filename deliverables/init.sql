@@ -5,6 +5,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS companies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) UNIQUE NOT NULL,
+    status VARCHAR(50) DEFAULT 'processing', -- processing, completed, rejected (Negative Cache/Lifecycle)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -26,7 +27,7 @@ CREATE TABLE IF NOT EXISTS assets (
     fk_company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     commodities JSONB NOT NULL, -- Array of commodities (e.g., ["Gold", "Copper"])
-    status VARCHAR(100), -- Example: "operating", "developing"
+    status VARCHAR(100), -- Example: "operating", "developing", "care and maintenance"
     country VARCHAR(100),
     state_province VARCHAR(100),
     town VARCHAR(100),
