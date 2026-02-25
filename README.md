@@ -29,19 +29,20 @@ As an Architect, system design requires balancing perfect theoretical stacks wit
 1. **Input:** The UI accepts a comma-delimited string of company names (e.g., "BHP, Evolution Mining").
 2. **Agentic Ingestion:** The backend dispatches a concurrent job for each company. It queries the Firecrawl API to search and scrape the most relevant pages regarding the Board of Directors and Mining Assets.
 3. **Extraction & Intelligence:** The raw markdown is sent to the Gemini API. Strict prompt engineering forces the LLM to return structured JSON containing executives (with technical summaries) and assets (with coordinates).
-4. **Vectorization:** The raw scraped data is chunked and embedded using Gemini's embedding model to enable semantic search.
-5. **Storage:** Relational data and vector embeddings are stored in Supabase.
+4. **Domain Validation:** The LLM evaluates if the context belongs to a real mining company. False positives (e.g., Apple Inc.) are gracefully discarded.
+5. **Storage:** Relational data is mapped and stored in the Supabase PostgreSQL database.
+
+*Note: The exact system prompts used for the LLM extraction can be found in the `prompts.txt` file at the root of this repository.*
 
 ## 🗄️ Database Architecture & Schema
 
-The database was modeled to be highly normalized, scalable, and tailored for both relational mapping and vector-based semantic search. 
+The database was modeled to be highly normalized and tailored for relational mapping. 
 
 ### Entity-Relationship Diagram
 ```mermaid
 erDiagram
     COMPANIES ||--o{ EXECUTIVES : "has leadership"
     COMPANIES ||--o{ ASSETS : "owns"
-    COMPANIES ||--o{ KNOWLEDGE_BASE : "has raw context"
 
     COMPANIES {
         uuid id PK
@@ -54,8 +55,8 @@ erDiagram
         uuid id PK
         uuid fk_company_id FK
         string name
-        jsonb expertise "Array of strings (e.g., Geology, Finance)"
-        jsonb technical_summary "Array of 3 strings (bullet points)"
+        jsonb expertise "Array of strings"
+        jsonb technical_summary "Array of 3 strings"
         timestamp created_at
         timestamp updated_at
     }
@@ -64,22 +65,13 @@ erDiagram
         uuid id PK
         uuid fk_company_id FK
         string name
-        jsonb commodities "Array of strings (e.g., gold, copper)"
+        jsonb commodities "Array of strings"
         string status "e.g., operating, developing"
         string country
         string state_province
         string town
         decimal latitude "Precision mapping"
         decimal longitude "Precision mapping"
-        timestamp created_at
-        timestamp updated_at
-    }
-
-    KNOWLEDGE_BASE {
-        uuid id PK
-        uuid fk_company_id FK
-        text raw_content "Scraped markdown chunk"
-        vector embedding "pgvector column (e.g., 768 dimensions)"
         timestamp created_at
         timestamp updated_at
     }
@@ -115,7 +107,34 @@ Quality is ensured through a comprehensive feature testing suite that uses mocks
 
 ---
 
-## 🛠️ Initial Setup
+## � Cost Estimation (10,000 Companies/Month)
+
+A core architectural goal was to minimize token usage and infrastructure costs while maintaining high precision. Here is the estimated monthly cost to process **10,000 companies**.
+
+**1. Data Ingestion (Firecrawl):**
+* Assuming 1 search/scrape operation per company = 10,000 operations.
+* Standard API cost is roughly $0.001 per credit.
+* **Estimated Cost:** ~$10.00 / month.
+
+**2. AI Extraction (Gemini 3 Flash Preview):**
+* *Why Flash 3?* Released in late 2025, Gemini 3 Flash was chosen for its state-of-the-art token efficiency, ultra-low latency, and enhanced support for complex JSON structured outputs.
+* Assuming an average of 10,000 tokens (input) and 500 tokens (output) per company scraped context.
+* Total Input: ~100 Million tokens ($0,50 per 1M) = $50.00.
+* Total Output: ~5 Million tokens ($3.00 per 1M) = $15.00.
+* **Estimated Cost:** ~$65.00 / month.
+
+**3. Infrastructure (Database & Orchestration):**
+* Supabase (Postgres): Pro Tier = $25.00 / month.
+
+**Total Estimated Monthly Pipeline Cost:** ~ $85.00 
+*(Highly scalable and optimized for the latest Gemini 3 architecture).*
+
+## 🔮 Future Architecture (System Design)
+While the current MVP focuses on relational extraction, the system is designed to easily accommodate the **Vector Database & RAG** requirement. The next iteration would introduce a `KNOWLEDGE_BASE` table with a `vector embedding` column using `pgvector`. During Step 3 of the pipeline, the raw markdown would be chunked and embedded via Gemini's embedding models, allowing users to query the raw context semantically.
+
+---
+
+## �🛠️ Initial Setup
 
 Follow these steps to prepare your environment before running the containers.
 
@@ -157,18 +176,26 @@ DB_QUEUE=mining
 
 ## 🚀 Running the Project
 
+The entire stack is orchestrated using Docker Compose for high portability.
+
 ### 1. Build and Start Containers
+Run the following command from the root directory:
 ```bash
 docker compose up -d --build
 ```
-This will start the **API (8000)**, **Worker**, and **Frontend (4200)**.
+This will start:
+- **`harpia_backend`**: Laravel API serving on `http://localhost:8000`
+- **`harpia_queue`**: Background worker for concurrent intelligence processing.
+- **`harpia_frontend`**: Angular Dashboard serving on `http://localhost:4200`
 
 ### 2. Database Migrations
+Run the migrations to set up the tables and pgvector extension in your Supabase instance:
 ```bash
 docker exec harpia_backend php artisan migrate
 ```
 
 ### 3. Running Tests (Optional)
+To verify the installation and ensure all services are working correctly (without consuming API tokens):
 ```bash
 docker exec harpia_backend php artisan test
 ```
