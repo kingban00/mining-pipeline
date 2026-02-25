@@ -1,6 +1,6 @@
 FROM php:8.2-cli
 
-# Instala dependências do sistema e do PostgreSQL
+# Install system dependencies and PostgreSQL client
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -11,17 +11,17 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libpq-dev
 
-# Limpa o cache do apt
+# Clear apt cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Instala extensões do PHP necessárias (incluindo pdo_pgsql para o Supabase)
+# Install necessary PHP extensions (including pdo_pgsql for Supabase)
 RUN docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd
 
-# Instala o Composer
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Define o diretório de trabalho
+# Set working directory
 WORKDIR /var/www/html
 
-# O código será mapeado via volume no docker-compose
+# The code will be mapped via volume in docker-compose
 EXPOSE 8000

@@ -1,5 +1,5 @@
 services:
-  # API Rest do Laravel
+  # Laravel REST API
   backend:
     build:
       context: ./backend
@@ -16,7 +16,7 @@ services:
     networks:
       - harpia_network
 
-  # Worker de Filas para o Processamento Concorrente
+  # Queue Worker for Concurrent Processing
   queue:
     build:
       context: ./backend
@@ -27,15 +27,13 @@ services:
       - ./backend:/var/www/html
     env_file:
       - ./backend/.env
-    # Aumentado o timeout para 300 para suportar o tempo de resposta das IAs
-    # command: php artisan queue:work --tries=3 --timeout=300 (Production)
     command: php artisan queue:work --queue=mining --tries=3 --timeout=300
     depends_on:
       - backend
     networks:
       - harpia_network
 
-  # Dashboard Angular
+  # Angular Dashboard
   frontend:
     build:
       context: ./frontend
@@ -45,7 +43,7 @@ services:
       - "4200:4200"
     volumes:
       - ./frontend:/app
-      - /app/node_modules # Impede que os módulos locais sobrescrevam os do container
+      - /app/node_modules # Prevents local modules from overwriting container modules
     command: npm start -- --host 0.0.0.0
     networks:
       - harpia_network

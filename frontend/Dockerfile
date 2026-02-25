@@ -1,16 +1,16 @@
 FROM node:20-alpine
 
-# Define o diretório de trabalho
+# Set working directory
 WORKDIR /app
 
-# Instala o Angular CLI globalmente
+# Install Angular CLI globally
 RUN npm install -g @angular/cli
 
-# Copia os arquivos de dependência
+# Copy dependency files
 COPY package*.json ./
 
-# Instala as dependências
+# Install dependencies
 RUN npm install
 
-# O código fonte será mapeado via volume no docker-compose
+# The source code will be mapped via volume in docker-compose
 EXPOSE 4200
