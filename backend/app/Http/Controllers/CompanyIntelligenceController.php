@@ -20,10 +20,16 @@ class CompanyIntelligenceController extends Controller
             'companies' => 'required|string',
         ]);
 
-        // 2. Clean, filter empty, and deduplicate the input array
-        $names = array_unique(array_filter(array_map('trim', explode(',', $request->input('companies')))));
+        // 2. Clean, filter empty, and normalize (Title Case + Trim)
+        $inputNames = explode(',', $request->input('companies'));
+        $normalizedNames = array_map(function ($name) {
+            return trim(mb_convert_case($name, MB_CASE_TITLE, "UTF-8"));
+        }, $inputNames);
 
-        // 3. Edge Case: Check if array is empty after filtering commas
+        // Deduplicate after normalization
+        $names = array_unique(array_filter($normalizedNames));
+
+        // 3. Edge Case: Check if array is empty after filtering
         if (empty($names)) {
             return response()->json(['message' => 'No valid company names provided.'], 400);
         }
@@ -48,11 +54,26 @@ class CompanyIntelligenceController extends Controller
     }
 
     /**
+     * Returns the number of pending jobs in the mining queue.
+     */
+    public function status(): JsonResponse
+    {
+        $queueCount = \Illuminate\Support\Facades\DB::table('jobs')
+            ->where('queue', 'mining')
+            ->count();
+
+        return response()->json([
+            'is_processing' => $queueCount > 0,
+            'pending_jobs' => $queueCount
+        ]);
+    }
+
+    /**
      * Returns a paginated list of processed companies, optionally filtered by search.
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Company::query();
+        $query = Company::query()->where('status', 'completed');
 
         // Implement search functionality if the parameter is present
         // Using 'ilike' for case-insensitive search in PostgreSQL (Supabase)
