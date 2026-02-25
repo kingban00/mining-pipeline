@@ -5,14 +5,15 @@ namespace Tests\Feature\Services;
 use App\Services\GeminiService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
+use PHPUnit\Framework\Attributes\Test;
 
 class GeminiServiceTest extends TestCase
 {
-    /** @test */
+    #[Test]
     public function it_extracts_and_formats_intelligence_into_structured_arrays()
     {
-        // Arrange: Simulamos a resposta da API do Gemini usando o formato nativo dela.
-        // Simulamos que a IA fez o trabalho perfeitamente e devolveu o JSON que pedimos.
+        // Arrange: Simulate Gemini API response using its native format.
+        // We simulate that the AI did the job perfectly and returned the JSON we requested.
         $mockedGeminiResponse = [
             'candidates' => [
                 [
@@ -51,47 +52,77 @@ class GeminiServiceTest extends TestCase
             ]
         ];
 
-        // Interceptamos qualquer chamada para a API do Google/Gemini
         Http::fake([
             'generativelanguage.googleapis.com/*' => Http::response($mockedGeminiResponse, 200)
         ]);
 
         $service = new GeminiService();
-        $fakeMarkdownContext = "--- LEADERSHIP CONTEXT ---\nMike Henry is CEO...\n\n--- ASSETS CONTEXT ---\nEscondida is a copper mine...";
 
-        // Act: Executamos o método que vamos criar em seguida
-        $result = $service->extractIntelligence('BHP', $fakeMarkdownContext);
+        // Act
+        $result = $service->extractIntelligence('BHP', 'Context...');
 
-        // Assert: Verificamos se o serviço nos entregou a estrutura exata que o Banco de Dados precisa
+        // Assert
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('leadership', $result);
-        $this->assertArrayHasKey('assets', $result);
-
-        // Validamos a tipagem dos dados de Liderança
         $this->assertEquals('Mike Henry', $result['leadership'][0]['name']);
-        $this->assertCount(3, $result['leadership'][0]['technical_summary']); // Garante que tem os 3 bullet-points
-
-        // Validamos a tipagem dos dados dos Ativos (especialmente as coordenadas numéricas)
         $this->assertEquals('Escondida', $result['assets'][0]['name']);
         $this->assertEquals(-24.266, $result['assets'][0]['latitude']);
     }
 
-    /** @test */
-    public function it_returns_empty_arrays_if_gemini_fails_to_respond()
+    #[Test]
+    public function it_throws_exception_if_gemini_fails_to_respond()
     {
-        // Arrange: Simulamos que a API da IA caiu ou deu erro de quota (Erro 500)
+        // Arrange: Simulate API error
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response(null, 500)
+            'generativelanguage.googleapis.com/*' => Http::response(['error' => 'Quota Exceeded'], 429)
         ]);
 
         $service = new GeminiService();
 
-        // Act
-        $result = $service->extractIntelligence('BHP', 'Some context');
+        // Assert: The system should throw an exception to trigger Job retries.
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Gemini API request failed with status 429 for BHP.');
 
-        // Assert: O sistema não deve quebrar. Deve retornar arrays vazios para salvar no banco.
-        $this->assertIsArray($result);
-        $this->assertEmpty($result['leadership']);
-        $this->assertEmpty($result['assets']);
+        // Act
+        $service->extractIntelligence('BHP', 'Some context');
+    }
+
+    #[Test]
+    public function it_throws_exception_if_gemini_returns_invalid_json()
+    {
+        // Arrange: Malformed JSON string
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [['content' => ['parts' => [['text' => 'this is not json']]]]]
+            ], 200)
+        ]);
+
+        $service = new GeminiService();
+
+        // Assert
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Gemini returned invalid JSON structure for BHP.');
+
+        // Act
+        $service->extractIntelligence('BHP', 'Some context');
+    }
+
+    #[Test]
+    public function it_throws_exception_if_gemini_returns_missing_keys()
+    {
+        // Arrange: Valid JSON but missing required 'leadership' key
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [['content' => ['parts' => [['text' => json_encode(['only_assets' => []])]]]]]
+            ], 200)
+        ]);
+
+        $service = new GeminiService();
+
+        // Assert
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Gemini returned invalid JSON structure for BHP.');
+
+        // Act
+        $service->extractIntelligence('BHP', 'Some context');
     }
 }

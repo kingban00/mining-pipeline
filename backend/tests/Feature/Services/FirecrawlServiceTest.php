@@ -6,9 +6,11 @@ use App\Services\FirecrawlService;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
+use PHPUnit\Framework\Attributes\Test;
+
 class FirecrawlServiceTest extends TestCase
 {
-    /** @test */
+    #[Test]
     public function it_fetches_and_structures_company_context_successfully()
     {
         // Arrange: Fake the HTTP response so we don't actually hit the Firecrawl API
@@ -35,7 +37,7 @@ class FirecrawlServiceTest extends TestCase
         $this->assertStringContainsString('--- ASSETS CONTEXT ---', $context);
     }
 
-    /** @test */
+    #[Test]
     public function it_handles_api_failures_gracefully_without_breaking_the_pipeline()
     {
         // Arrange: Simulate a 500 Server Error from Firecrawl
