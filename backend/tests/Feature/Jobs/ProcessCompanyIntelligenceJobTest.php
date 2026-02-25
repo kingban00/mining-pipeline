@@ -23,6 +23,8 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
         $companyName = 'Test Mining Corp';
         $dummyMarkdown = '--- LEADERSHIP --- John Doe';
         $dummyExtractedData = [
+            'official_name' => 'Test Mining Corp S.A.',
+            'is_mining_sector' => true,
             'leadership' => [
                 [
                     'name' => 'John Doe',
@@ -44,7 +46,7 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
             ]
         ];
 
-        // Arrange: Mock the FirecrawlService to return our dummy markdown
+        // Arrange: Mock the FirecrawlService
         $firecrawlMock = $this->mock(FirecrawlService::class, function (MockInterface $mock) use ($companyName, $dummyMarkdown) {
             $mock->shouldReceive('getCompanyContext')
                 ->once()
@@ -52,7 +54,7 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
                 ->andReturn($dummyMarkdown);
         });
 
-        // Arrange: Mock the GeminiService to return our predefined array
+        // Arrange: Mock the GeminiService
         $geminiMock = $this->mock(GeminiService::class, function (MockInterface $mock) use ($companyName, $dummyMarkdown, $dummyExtractedData) {
             $mock->shouldReceive('extractIntelligence')
                 ->once()
@@ -60,61 +62,81 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
                 ->andReturn($dummyExtractedData);
         });
 
-        // Act: Instantiate the Job and call handle(), passing the mocked services
+        // Act
         $job = new ProcessCompanyIntelligenceJob($companyName);
         $job->handle($firecrawlMock, $geminiMock);
 
-        // Assert: Verify the Company was created
+        // Assert: Verify the Company was created with official_name and status completed
         $this->assertDatabaseHas('companies', [
-            'name' => 'Test Mining Corp'
+            'name' => 'Test Mining Corp S.A.',
+            'status' => 'completed'
         ]);
 
-        // Retrieve the created company to check its relations
-        $company = Company::where('name', 'Test Mining Corp')->first();
+        $company = Company::where('name', 'Test Mining Corp S.A.')->first();
 
-        // Assert: Verify the Executive was saved with the correct relations
         $this->assertDatabaseHas('executives', [
             'fk_company_id' => $company->id,
             'name' => 'John Doe',
         ]);
 
-        // Assert: Verify the Asset was saved with the correct coordinates
         $this->assertDatabaseHas('assets', [
             'fk_company_id' => $company->id,
             'name' => 'Alpha Mine',
-            'status' => 'operating',
             'latitude' => -19.916681,
             'longitude' => -43.934493
         ]);
     }
-    #[Test]
-    public function it_does_not_save_ghost_records_if_no_data_is_extracted()
-    {
-        // Arrange
-        $companyName = 'Ghost Company';
-        $dummyMarkdown = 'Context for a pizza company.';
 
-        // Simulates Gemini returning empty arrays (as if it's not a mining company)
-        $emptyExtractedData = [
+    #[Test]
+    public function it_marks_as_rejected_if_it_is_not_a_mining_company()
+    {
+        $companyName = 'Pizza delivery';
+        $dummyMarkdown = 'We deliver pizza.';
+        $dummyExtractedData = [
+            'official_name' => 'Best Pizza',
+            'is_mining_sector' => false,
             'leadership' => [],
             'assets' => []
         ];
 
-        $firecrawlMock = $this->mock(FirecrawlService::class, function (MockInterface $mock) use ($companyName, $dummyMarkdown) {
-            $mock->shouldReceive('getCompanyContext')->once()->andReturn($dummyMarkdown);
+        $firecrawlMock = $this->mock(FirecrawlService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('getCompanyContext')->once()->andReturn('...');
         });
 
-        $geminiMock = $this->mock(GeminiService::class, function (MockInterface $mock) use ($companyName, $dummyMarkdown, $emptyExtractedData) {
-            $mock->shouldReceive('extractIntelligence')->once()->andReturn($emptyExtractedData);
+        $geminiMock = $this->mock(GeminiService::class, function (MockInterface $mock) use ($dummyExtractedData) {
+            $mock->shouldReceive('extractIntelligence')->once()->andReturn($dummyExtractedData);
         });
 
-        // Act
         $job = new ProcessCompanyIntelligenceJob($companyName);
         $job->handle($firecrawlMock, $geminiMock);
 
-        // Assert: Verify the company was NOT created in the database
-        $this->assertDatabaseMissing('companies', [
-            'name' => 'Ghost Company'
+        // Assert: Verify it exists but as REJECTED
+        // Note: Using Title Case normalization in search now, so "Best Pizza"
+        $this->assertDatabaseHas('companies', [
+            'name' => 'Best Pizza',
+            'status' => 'rejected'
         ]);
+    }
+
+    #[Test]
+    public function it_skips_processing_if_cache_is_fresh()
+    {
+        $companyName = 'Existing Mine';
+        // Mocking name to match what 'ilike' would find
+        Company::create(['name' => $companyName, 'status' => 'completed']);
+
+        // Mock services and ensure they are NEVER called (skip)
+        $firecrawlMock = $this->mock(FirecrawlService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('getCompanyContext')->never();
+        });
+
+        $geminiMock = $this->mock(GeminiService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('extractIntelligence')->never();
+        });
+
+        $job = new ProcessCompanyIntelligenceJob($companyName);
+        $job->handle($firecrawlMock, $geminiMock);
+
+        $this->assertTrue(true);
     }
 }

@@ -40,29 +40,48 @@ class ProcessCompanyIntelligenceJob implements ShouldQueue
     {
         Log::info("Job Started: Processing intelligence for {$this->companyName}");
 
+        // 0. Pre-flight Check: Prevent redundant AI processing (Token Saving)
+        // Check if company exists and was processed recently
+        $existingCompany = Company::where('name', 'ilike', $this->companyName)->first();
+        if ($existingCompany && $existingCompany->updated_at->gt(now()->subHours(24))) {
+            Log::info("Job Skipped: {$this->companyName} version exists in cache.");
+            return;
+        }
+
         // 1. Ingestion (Search & Scrape)
         $markdownContext = $firecrawlService->getCompanyContext($this->companyName);
 
         // 2. Intelligence (Extraction to JSON)
         $structuredData = $geminiService->extractIntelligence($this->companyName, $markdownContext);
 
-        // Domain Validation: Skip storage if no relevant data was found (prevents "ghost" records)
-        if (empty($structuredData['leadership']) && empty($structuredData['assets'])) {
-            Log::warning("Job Skipped: No mining intelligence found for {$this->companyName}. Possible non-mining company.");
+        // Name resolution: Use the AI-identified official name to handle aliases/typos
+        $officialName = $structuredData['official_name'] ?? $this->companyName;
+        $isMining = $structuredData['is_mining_sector'] ?? false;
+
+        // Logic check: Even if IA says it is mining, if it found absolutely nothing, we treat as rejected for now
+        $hasData = !empty($structuredData['leadership']) || !empty($structuredData['assets']);
+
+        if (!$isMining || !$hasData) {
+            $this->updateOrCreateCompanyStatus($officialName, 'rejected');
+            Log::warning("Job Finished: Company {$officialName} rejected (Non-mining or No Data).");
             return;
         }
 
-        // 3. Storage (Relational Database mapping)
+        // 3. Storage
         try {
-            // Use a transaction to ensure we don't save half the data if something fails
-            DB::transaction(function () use ($structuredData) {
+            DB::transaction(function () use ($structuredData, $officialName) {
+                // Find or create using resolved name
+                $company = Company::firstOrCreate(['name' => $officialName]);
 
-                // Find or create the root company record
-                $company = Company::firstOrCreate(['name' => $this->companyName]);
-
-                // Clear old data if reprocessing the same company to avoid duplicates
+                // Clear old data
                 $company->executives()->delete();
                 $company->assets()->delete();
+
+                // Standardize and Update State
+                $company->update([
+                    'name' => $officialName,
+                    'status' => 'completed'
+                ]);
 
                 // Insert Leadership
                 if (!empty($structuredData['leadership'])) {
@@ -92,14 +111,29 @@ class ProcessCompanyIntelligenceJob implements ShouldQueue
                         ]);
                     }
                 }
+
+                $company->touch();
             });
 
-            Log::info("Job Completed: Data securely stored for {$this->companyName}");
+            Log::info("Job Completed: Data stored for {$officialName}");
 
         } catch (\Exception $e) {
-            Log::error("Database Transaction Failed for {$this->companyName}: " . $e->getMessage());
-            // Throwing the exception tells Laravel's Queue system to retry the job
+            Log::error("Database Transaction Failed for {$officialName}: " . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * Updates company status and refreshes cache timer.
+     */
+    private function updateOrCreateCompanyStatus(string $name, string $status): void
+    {
+        $company = Company::where('name', 'ilike', $name)->first();
+        if ($company) {
+            $company->update(['status' => $status]);
+            $company->touch();
+        } else {
+            Company::create(['name' => $name, 'status' => $status]);
         }
     }
 }
