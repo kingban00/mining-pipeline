@@ -34,13 +34,20 @@ class GeminiService
         $prompt = $this->buildSystemPrompt($companyName);
 
         try {
+            // Safety Truncation: Prevent token waste from extremely large markdown contexts
+            $truncatedContext = mb_substr($markdownContext, 0, 30000);
+            if (mb_strlen($markdownContext) > 30000) {
+                $truncatedContext .= "\n\n[CONTEXT TRUNCATED FOR TOKEN SAVING]";
+                Log::info("Context truncated for {$companyName} ({$this->baseUrl})");
+            }
+
             // We use a high timeout because LLM text generation can take a few seconds
             $response = Http::timeout(120)->post("{$this->baseUrl}?key={$this->apiKey}", [
                 'contents' => [
                     [
                         'role' => 'user',
                         'parts' => [
-                            ['text' => $prompt . "\n\n--- CONTEXT TO ANALYZE ---\n" . $markdownContext]
+                            ['text' => $prompt . "\n\n--- CONTEXT TO ANALYZE ---\n" . $truncatedContext]
                         ]
                     ]
                 ],
@@ -90,39 +97,36 @@ class GeminiService
      */
     private function buildSystemPrompt(string $companyName): string
     {
-        // The Heredoc format (<<<PROMPT) keeps the string formatting clean
         return <<<PROMPT
-You are a highly precise data extraction AI working for a mining intelligence pipeline.
-Your task is to analyze the provided scraped markdown context for the company "{$companyName}" and extract structured data.
+Role: Expert Mining Analyst AI.
+Task: Extract structured JSON for "{$companyName}" from markdown.
 
-CRITICAL RULES:
-1. Return ONLY a valid JSON object. No markdown blocks, no conversational text.
-2. If data for a specific field is missing in the context, use null (for strings/numbers) or an empty array [].
-3. For the "technical_summary" in leadership, you MUST provide exactly 3 bullet points focusing on project experience and operational history.
-4. For coordinates, estimate or extract approximate latitude and longitude as numbers (decimals) if the exact location is mentioned.
-5. DOMAIN VALIDATION: ONLY extract data if the company explicitly operates in the mining, resources, or exploration sectors. Otherwise, return empty arrays for both leadership and assets to prevent false positives.
+STRICT INSTRUCTIONS:
+1. Output ONLY valid JSON.
+2. Domain Lock: If context is NOT about mining/resources/extraction, return {"is_mining_sector": false, "leadership":[], "assets":[]}.
+3. Missing fields: Use null or [].
+4. Leadership: Extract top executives. "technical_summary" must be exactly 3 precise bullet points on their mining/operational career.
+5. Assets: Extract mines/projects. Estimate lat/long decimals from location descriptions if not explicit.
+6. Official Name: Extract the full legal/official name of the company.
 
 REQUIRED JSON SCHEMA:
 {
+  "official_name": "Full Official Company Name",
+  "is_mining_sector": boolean,
   "leadership": [
     {
-      "name": "string (Executive/Board member name)",
-      "expertise": ["string", "string"],
-      "technical_summary": [
-        "string (Bullet 1)",
-        "string (Bullet 2)",
-        "string (Bullet 3)"
-      ]
+      "name": "string",
+      "expertise": ["string"],
+      "technical_summary": ["bullet 1", "bullet 2", "bullet 3"]
     }
   ],
   "assets": [
     {
-      "name": "string (Mine/Project name)",
-      "commodities": ["string", "string"],
-      "status": "string (e.g., operating, developing)",
+      "name": "string",
+      "commodities": ["string"],
+      "status": "string (developing/operating/care and maintenance)",
       "country": "string",
       "state_province": "string",
-      "town": "string",
       "latitude": float,
       "longitude": float
     }
@@ -131,16 +135,4 @@ REQUIRED JSON SCHEMA:
 PROMPT;
     }
 
-    /**
-     * Fallback array to ensure graceful degradation if the API fails.
-     *
-     * @return array
-     */
-    private function getEmptyResponse(): array
-    {
-        return [
-            'leadership' => [],
-            'assets' => []
-        ];
-    }
 }

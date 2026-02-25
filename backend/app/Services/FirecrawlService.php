@@ -22,17 +22,17 @@ class FirecrawlService
      */
     public function getCompanyContext(string $companyName): string
     {
-        Log::info("Starting autonomous ingestion for: {$companyName}");
+        Log::info("Starting precision-targeted ingestion for: {$companyName}");
 
-        // 1. Search for Leadership (Board/Executives)
-        $leadershipQuery = "{$companyName} mining company board of directors executive management team";
-        $leadershipContext = $this->searchAndScrape($leadershipQuery);
+        // Scope 1: Leadership & Governance (High precision cluster)
+        $leadershipQuery = "{$companyName} mining company official board of directors executive management leadership team";
+        $leadershipContext = $this->searchAndScrape($leadershipQuery, 2);
 
-        // 2. Search for Assets (Mines/Operations)
-        $assetsQuery = "{$companyName} mining company active operations assets mines projects location";
-        $assetsContext = $this->searchAndScrape($assetsQuery);
+        // Scope 2: Assets & Operations (High precision cluster with geospatial focus)
+        $assetsQuery = "{$companyName} mining company global active operations assets mines projects location geography portfolio";
+        $assetsContext = $this->searchAndScrape($assetsQuery, 2);
 
-        // Return concatenated context for the LLM to process
+        // Concatenate for a single comprehensive LLM pass
         return "--- LEADERSHIP CONTEXT ---\n" . $leadershipContext . "\n\n--- ASSETS CONTEXT ---\n" . $assetsContext;
     }
 
@@ -41,7 +41,7 @@ class FirecrawlService
      * * @param string $query
      * @return string
      */
-    private function searchAndScrape(string $query): string
+    private function searchAndScrape(string $query, int $limit = 2): string
     {
         try {
             // High timeout as web scraping can be slow
@@ -49,7 +49,7 @@ class FirecrawlService
                 ->timeout(90)
                 ->post("{$this->baseUrl}/search", [
                     'query' => $query,
-                    'limit' => 2, // Limit to 2 results for precision and token saving
+                    'limit' => $limit,
                     'scrapeOptions' => [
                         'formats' => ['markdown'],
                         'onlyMainContent' => true // Strip useless navigation/footers (Pragmatism)
