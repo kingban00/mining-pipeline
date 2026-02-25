@@ -1,1 +1,61 @@
-/* You can add global styles to this file, and also import other style files */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --primary: #2563eb;
+    --secondary: #64748b;
+    --glass: rgba(255, 255, 255, 0.8);
+}
+
+body {
+    @apply bg-slate-50 text-slate-900;
+    background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+@layer components {
+    .glass-card {
+        @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl rounded-xl;
+    }
+
+    .btn-primary {
+        @apply px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-50;
+    }
+
+    .btn-outline {
+        @apply px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-all;
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.shimmer {
+    background: linear-gradient(90deg, #f0f0f0 0%, #f8f8f8 50%, #f0f0f0 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
