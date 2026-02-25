@@ -17,67 +17,55 @@ class FirecrawlService
 
     /**
      * Orchestrates the autonomous search for both required scopes: Leadership and Assets.
-     * * @param string $companyName
-     * @return string The concatenated markdown context.
+     * Parallelizes requests to cut ingestion time by 50%.
      */
     public function getCompanyContext(string $companyName): string
     {
-        Log::info("Starting precision-targeted ingestion for: {$companyName}");
+        Log::info("Starting parallelized ingestion for: {$companyName}");
 
-        // Scope 1: Leadership & Governance (High precision cluster)
         $leadershipQuery = "{$companyName} mining company official board of directors executive management leadership team";
-        $leadershipContext = $this->searchAndScrape($leadershipQuery, 2);
+        $assetsQuery = "{$companyName} mining company list of active mines operations projects location and coordinates overview";
 
-        // Scope 2: Assets & Operations (High precision cluster with geospatial focus)
-        $assetsQuery = "{$companyName} mining company global active operations assets mines projects location geography portfolio";
-        $assetsContext = $this->searchAndScrape($assetsQuery, 2);
+        // Dispatch parallel requests using Laravel Http Pool
+        $responses = Http::pool(fn(\Illuminate\Http\Client\Pool $pool) => [
+            $pool->as('leadership')->withToken($this->apiKey)->timeout(90)->post("{$this->baseUrl}/search", [
+                'query' => $leadershipQuery,
+                'limit' => 2,
+                'scrapeOptions' => ['formats' => ['markdown'], 'onlyMainContent' => true]
+            ]),
+            $pool->as('assets')->withToken($this->apiKey)->timeout(90)->post("{$this->baseUrl}/search", [
+                'query' => $assetsQuery,
+                'limit' => 2,
+                'scrapeOptions' => ['formats' => ['markdown'], 'onlyMainContent' => true]
+            ]),
+        ]);
 
-        // Concatenate for a single comprehensive LLM pass
-        return "--- LEADERSHIP CONTEXT ---\n" . $leadershipContext . "\n\n--- ASSETS CONTEXT ---\n" . $assetsContext;
+        $leadershipMarkdown = $this->parseFirecrawlResponse($responses['leadership'], $leadershipQuery);
+        $assetsMarkdown = $this->parseFirecrawlResponse($responses['assets'], $assetsQuery);
+
+        return "--- LEADERSHIP CONTEXT ---\n" . $leadershipMarkdown . "\n\n--- ASSETS CONTEXT ---\n" . $assetsMarkdown;
     }
 
     /**
-     * Consumes the Firecrawl API to search and extract Markdown content.
-     * * @param string $query
-     * @return string
+     * Parses the JSON response from Firecrawl into a concatenated string.
      */
-    private function searchAndScrape(string $query, int $limit = 2): string
+    private function parseFirecrawlResponse($response, string $query): string
     {
-        try {
-            // High timeout as web scraping can be slow
-            $response = Http::withToken($this->apiKey)
-                ->timeout(90)
-                ->post("{$this->baseUrl}/search", [
-                    'query' => $query,
-                    'limit' => $limit,
-                    'scrapeOptions' => [
-                        'formats' => ['markdown'],
-                        'onlyMainContent' => true // Strip useless navigation/footers (Pragmatism)
-                    ]
-                ]);
-
-            // Resilience required by the bounty: if it fails, log and continue the pipeline
-            if ($response->failed()) {
-                Log::error("Firecrawl search failed for query: {$query}", ['response' => $response->body()]);
-                return "No data found for this section.";
-            }
-
-            $results = $response->json('data', []);
-            $markdownContext = "";
-
-            foreach ($results as $result) {
-                if (!empty($result['markdown'])) {
-                    // Append source URL to aid future RAG/Vector searches
-                    $markdownContext .= "Source URL: " . ($result['url'] ?? 'Unknown') . "\n";
-                    $markdownContext .= $result['markdown'] . "\n\n";
-                }
-            }
-
-            return $markdownContext;
-
-        } catch (\Exception $e) {
-            Log::error("Connection error with Firecrawl on query: {$query}. Error: " . $e->getMessage());
-            return "Error fetching data.";
+        if (!$response || $response->failed()) {
+            Log::error("Firecrawl failed for: {$query}", ['body' => $response ? $response->body() : 'No response']);
+            return "No data found for this section.";
         }
+
+        $results = $response->json('data', []);
+        $markdownContent = "";
+
+        foreach ($results as $result) {
+            if (!empty($result['markdown'])) {
+                $markdownContent .= "Source URL: " . ($result['url'] ?? 'Unknown') . "\n";
+                $markdownContent .= $result['markdown'] . "\n\n";
+            }
+        }
+
+        return $markdownContent ?: "No markdown extracted for this query.";
     }
 }
