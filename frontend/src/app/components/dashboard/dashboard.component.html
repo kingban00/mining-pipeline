@@ -1,0 +1,425 @@
+<div class="min-h-screen container mx-auto p-4 md:p-8 max-w-7xl font-sans">
+
+    <!-- Header with Breadcrumbs & Logo -->
+    <header class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">Harpia <span
+                        class="text-blue-600">Intelligence</span></h1>
+            </div>
+            <p class="text-slate-500 font-medium">Mining Data Pipeline & AI Extraction</p>
+        </div>
+
+        <!-- Notification Toast -->
+        @if (notification(); as note) {
+        <div class="fixed top-6 right-6 z-50 animate-fade-in">
+            <div [class]="'flex items-center gap-3 p-4 rounded-xl shadow-2xl border transition-all ' + 
+                (note.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 
+                 note.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-800' : 
+                 'bg-blue-50 border-blue-200 text-blue-800')">
+                <span>{{ note.message }}</span>
+                <button (click)="notification.set(null)" class="hover:bg-black/5 p-1 rounded">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        }
+    </header>
+
+    @if (!selectedCompany()) {
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div class="glass-card p-6 flex items-center gap-4">
+            <div class="bg-blue-100 p-3 rounded-xl text-blue-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-slate-500 uppercase">Monitored Companies</p>
+                <h3 class="text-2xl font-bold">{{ totalCompaniesCount() }}</h3>
+            </div>
+        </div>
+        <div class="glass-card p-6 flex items-center gap-4">
+            <div class="bg-amber-100 p-3 rounded-xl text-amber-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-slate-500 uppercase">Pipeline Status</p>
+                <h3 class="text-2xl font-bold flex items-center gap-2">
+                    {{ isPipelineActive() ? 'Scanning' : 'Inactive' }}
+                    @if (isPipelineActive()) {
+                    <span class="relative flex h-3 w-3">
+                        <span
+                            class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-600"></span>
+                    </span>
+                    }
+                </h3>
+            </div>
+        </div>
+        <div class="glass-card p-6 flex items-center gap-4">
+            <div class="bg-emerald-100 p-3 rounded-xl text-emerald-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-slate-500 uppercase">Data Quality</p>
+                <h3 class="text-2xl font-bold">AI Audited</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ingestion Section -->
+    <section class="glass-card mb-10 overflow-hidden">
+        <div class="p-6 bg-slate-800 text-white">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Intelligent Ingestion
+            </h2>
+            <p class="text-slate-400 text-sm">Add company names separated by commas for processing.</p>
+        </div>
+        <div class="p-6">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-1 relative">
+                    <input type="text" [ngModel]="companiesInput()" (ngModelChange)="companiesInput.set($event)"
+                        placeholder="Ex: Alcoa, Antofagasta, Fortescue..."
+                        class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all pr-12"
+                        [disabled]="isProcessing()">
+                    <div class="absolute right-4 top-4 text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                </div>
+                <button (click)="processCompanies()" [disabled]="isProcessing() || !companiesInput()"
+                    class="btn-primary flex items-center justify-center gap-2 min-w-[200px]">
+                    @if (isProcessing()) {
+                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none"
+                        viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                        </circle>
+                        <path class="opacity-75" fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                    Processing...
+                    } @else {
+                    Run AI Pipeline
+                    }
+                </button>
+            </div>
+            <div
+                class="mt-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100 italic">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" viewBox="0 0 20 20"
+                    fill="currentColor">
+                    <path fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd" />
+                </svg>
+                Multithreaded processing will ensure data is extracted in parallel.
+            </div>
+        </div>
+    </section>
+
+    <!-- Knowledge Base Section -->
+    <section class="glass-card overflow-hidden">
+        <div
+            class="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h2 class="text-xl font-bold text-slate-800">Intelligence Lake</h2>
+                <p class="text-slate-500 text-sm">Consolidated data ready for analysis.</p>
+            </div>
+
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                @if (isPipelineActive()) {
+                <button (click)="stopPolling()"
+                    class="text-xs font-semibold px-3 py-1 bg-red-50 text-red-600 border border-red-100 rounded-full hover:bg-red-100 transition-colors">
+                    Stop Live Updates
+                </button>
+                }
+                <div class="relative w-full">
+                    <input type="text" [ngModel]="searchQuery()" (ngModelChange)="onSearchChange($event)"
+                        placeholder="Filter by name..."
+                        class="w-full md:w-64 p-2 pl-9 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all shadow-inner bg-slate-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-2.5 text-slate-400"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        @if (isListLoading()) {
+        <div class="p-12">
+            <div class="flex flex-col gap-4">
+                @for (i of [1,2,3,4,5]; track i) {
+                <div class="h-16 shimmer rounded-xl w-full"></div>
+                }
+            </div>
+        </div>
+        } @else {
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-400 text-xs uppercase tracking-[0.1em] font-bold">
+                        <th class="p-6">Company Entity</th>
+                        <th class="p-6">Ingestion Timestamp</th>
+                        <th class="p-6 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @for (company of companies(); track company.id) {
+                    <tr class="hover:bg-blue-50/50 transition-all group">
+                        <td class="p-6">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors capitalize font-bold">
+                                    {{ company.name.substring(0, 2) }}
+                                </div>
+                                <span class="font-bold text-slate-700">{{ company.name }}</span>
+                            </div>
+                        </td>
+                        <td class="p-6 text-slate-400 font-mono text-sm">{{ company.created_at | date:'dd MMM yyyy •
+                            HH:mm' }}</td>
+                        <td class="p-6 text-right">
+                            <button (click)="viewDetails(company.id)" [disabled]="isDetailLoading()"
+                                class="inline-flex items-center gap-2 text-blue-600 font-bold text-sm bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm disabled:opacity-50">
+                                @if (isDetailLoading() && viewingCompanyId() === company.id) {
+                                <svg class="animate-spin h-4 w-4 text-blue-600 group-hover:text-white"
+                                    xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                        stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                    </path>
+                                </svg>
+                                Loading...
+                                } @else {
+                                View Intelligence
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 5l7 7-7 7" />
+                                </svg>
+                                }
+                            </button>
+                        </td>
+                    </tr>
+                    } @empty {
+                    <tr>
+                        <td colspan="3" class="p-20 text-center">
+                            <div class="flex flex-col items-center gap-3 grayscale opacity-30">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" fill="none"
+                                    viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                </svg>
+                                <span class="text-xl font-bold">No records found</span>
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+            <p class="text-sm text-slate-500">Showing <span class="font-bold text-slate-800">{{
+                    pageSize() }}</span> records per page</p>
+            <div class="flex gap-2">
+                <button [disabled]="currentPage() === 1" (click)="loadCompanies(currentPage() - 1)"
+                    class="btn-outline text-sm disabled:opacity-30">
+                    Previous
+                </button>
+                <div class="flex items-center px-4 bg-white border rounded-lg text-sm font-bold text-slate-600">
+                    {{ currentPage() }} / {{ totalPages() || 1 }}
+                </div>
+                <button [disabled]="currentPage() === totalPages() || totalPages() === 0"
+                    (click)="loadCompanies(currentPage() + 1)" class="btn-outline text-sm disabled:opacity-30">
+                    Next
+                </button>
+            </div>
+        </div>
+        }
+    </section>
+    }
+
+    <!-- Analytics Detail Section -->
+    @if (selectedCompany(); as company) {
+    <section class="animate-fade-in pb-20">
+        <button (click)="closeDetails()"
+            class="mb-8 flex items-center gap-2 group text-slate-500 hover:text-blue-600 font-bold transition-all">
+            <div
+                class="bg-white p-2 rounded-lg shadow-sm border group-hover:border-blue-200 group-hover:bg-blue-50 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd"
+                        d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                        clip-rule="evenodd" />
+                </svg>
+            </div>
+            Dashboard View
+        </button>
+
+        <div class="glass-card overflow-hidden">
+            <div class="p-10 bg-slate-800 text-white relative">
+                <div class="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-blue-600/20 to-transparent"></div>
+                <div class="relative z-10">
+                    <span class="text-blue-400 text-sm font-bold tracking-widest uppercase">Intelligence Report</span>
+                    <h2 class="text-5xl font-black mt-2">{{ company.name }}</h2>
+                    <p class="mt-4 text-slate-400 max-w-2xl font-medium">Complete extraction of corporate metadata,
+                        mineral assets, and technical leadership analysis generated via Harpia pipeline.</p>
+                </div>
+            </div>
+
+            <div class="p-10">
+                <!-- Leadership Section -->
+                <div class="mb-16">
+                    <h3 class="text-2xl font-bold mb-8 text-slate-800 flex items-center gap-3">
+                        <span class="h-8 w-1.5 bg-blue-600 rounded-full"></span>
+                        Key Leadership & Board
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        @for (exec of company.executives; track exec.id) {
+                        <div
+                            class="group bg-slate-50 p-8 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-white hover:shadow-xl transition-all">
+                            <h4 class="font-black text-xl text-slate-800 group-hover:text-blue-600 transition-colors">{{
+                                exec.name }}</h4>
+                            <div class="flex flex-wrap gap-2 mt-3 mb-6">
+                                @for (exp of exec.expertise; track exp) {
+                                <span
+                                    class="px-3 py-1 text-xs font-black bg-slate-200 text-slate-600 rounded-full uppercase tracking-wider group-hover:bg-blue-100 group-hover:text-blue-700">{{
+                                    exp }}</span>
+                                }
+                            </div>
+                            <div class="space-y-3">
+                                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Technical Focus
+                                </p>
+                                <ul class="space-y-2">
+                                    @for (point of exec.technical_summary; track point) {
+                                    <li class="flex items-start gap-3 text-sm text-slate-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg"
+                                            class="h-5 w-5 text-emerald-500 shrink-0" viewBox="0 0 20 20"
+                                            fill="currentColor">
+                                            <path fill-rule="evenodd"
+                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        {{ point }}
+                                    </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                        } @empty {
+                        <div
+                            class="col-span-2 py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-400 font-bold uppercase tracking-widest">
+                            No leadership data extracted
+                        </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Assets Section -->
+                <div>
+                    <h3 class="text-2xl font-bold mb-8 text-slate-800 flex items-center gap-3">
+                        <span class="h-8 w-1.5 bg-blue-600 rounded-full"></span>
+                        Resource & Asset Map
+                    </h3>
+                    <div class="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="bg-slate-800 text-white text-xs uppercase tracking-widest font-bold">
+                                    <th class="p-6">Asset Name</th>
+                                    <th class="p-6">Status</th>
+                                    <th class="p-6">Primary Commodities</th>
+                                    <th class="p-6">Geographic Domain</th>
+                                    <th class="p-6 text-right">Coord. Matrix</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                @for (asset of company.assets; track asset.id) {
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="p-6 font-bold text-slate-800">{{ asset.name }}</td>
+                                    <td class="p-6">
+                                        <span
+                                            class="px-3 py-1 text-xs rounded-lg font-black uppercase tracking-wider inline-block min-w-[100px] text-center"
+                                            [class.bg-emerald-100]="asset.status?.toLowerCase() === 'operating'"
+                                            [class.text-emerald-700]="asset.status?.toLowerCase() === 'operating'"
+                                            [class.bg-blue-100]="asset.status?.toLowerCase() !== 'operating'"
+                                            [class.text-blue-700]="asset.status?.toLowerCase() !== 'operating'">
+                                            {{ asset.status || 'Verified' }}
+                                        </span>
+                                    </td>
+                                    <td class="p-6">
+                                        <div class="flex flex-wrap gap-1">
+                                            @for (comm of asset.commodities; track comm) {
+                                            <span
+                                                class="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase">{{
+                                                comm }}</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="p-6 text-sm text-slate-600 font-medium">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs uppercase bg-slate-100 px-2 py-1 rounded font-bold">{{
+                                                asset.country }}</span>
+                                            @if (asset.state_province) {
+                                            <span class="text-slate-400">•</span>
+                                            <span>{{ asset.state_province }}</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="p-6 text-right font-mono text-xs font-bold text-slate-400">
+                                        @if (asset.latitude && asset.longitude) {
+                                        {{ asset.latitude }}, {{ asset.longitude }}
+                                        } @else {
+                                        <span class="text-slate-200 italic">Not Mapped</span>
+                                        }
+                                    </td>
+                                </tr>
+                                } @empty {
+                                <tr>
+                                    <td colspan="5"
+                                        class="p-20 text-center text-slate-400 font-bold uppercase tracking-widest bg-slate-50">
+                                        No mineral assets extracted via AI
+                                    </td>
+                                </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    }
+</div>
