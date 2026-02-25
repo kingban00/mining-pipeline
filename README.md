@@ -18,7 +18,7 @@ As an Architect, system design requires balancing perfect theoretical stacks wit
 3. **Resilience & Error Handling:** Dealing with LLMs and web scraping inherently involves failures (e.g., pages not listing assets, timeouts). Laravel's HTTP Client gracefully handles retries, timeouts, and payload validation, ensuring the pipeline doesn't break when encountering dirty unstructured data.
 
 ### The Stack:
-* **Backend / Orchestrator:** Laravel 11 (REST API & Queue Workers)
+* **Backend / Orchestrator:** Laravel 12 (REST API & Queue Workers)
 * **Frontend:** Angular (Lightweight UI/Dashboard)
 * **Database:** Supabase (PostgreSQL with `pgvector` for semantic search)
 * **Search / Scrape:** Firecrawl API
@@ -85,15 +85,127 @@ erDiagram
     }
 ```
 
-### Migration Files
-All migrations are located in `backend/database/migrations/`.
+## 🛣️ API Endpoints
 
-## 🚀 How to Run the Project
+A robust REST API was implemented to manage the pipeline and serve the extracted intelligence:
 
-This project is fully containerized for a seamless setup. 
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/companies/process` | Accepts a string of companies, validates limits (max 10), and dispatches concurrent jobs. |
+| `GET` | `/api/companies` | Returns a paginated list (10/page) of processed companies with search filtering. |
+| `GET` | `/api/companies/{id}` | Returns full details of a company, including its leadership and assets. |
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd mining-pipeline
-   ```
+## 🛡️ Resilience & Error Handling
+
+To ensure the pipeline handles the unpredictability of LLMs and web scraping, we implemented:
+
+- **Automatic Retries:** Jobs are configured with 3 retries. If the Gemini API or Firecrawl fails, the job is released back to the queue for another attempt.
+- **Domain Validation:** A specialized system prompt forces the AI to validate if the company is in the mining sector. If not, it returns empty data, preventing "ghost" records.
+- **Transaction Safety:** Database operations use SQL Transactions to ensure atomic updates (preventing partial data saves when an error occurs).
+- **PgBouncer Compatibility:** The backend is configured to work with Supabase's connection pooler using statement emulation to avoid transaction aborted errors.
+
+## 🧪 Testing Strategy
+
+Quality is ensured through a comprehensive feature testing suite that uses mocks to avoid API costs:
+
+- **Controller Tests:** Validates batch limits, search input cleaning, pagination, and deduplication.
+- **Service Tests:** Mocks `Http::fake()` to simulate Gemini/Firecrawl responses, covering edge cases like invalid JSON or API failures.
+- **Job Tests:** Orchestration tests that confirm the full pipeline flow from scraping to database storage without real API calls.
+- **Safe Run:** All tests use `Queue::fake()` or `Http::fake()` to ensure zero token consumption during development.
+
+---
+
+## 🛠️ Initial Setup
+
+Follow these steps to prepare your environment before running the containers.
+
+### 1. Prerequisites
+- **Docker & Docker Compose** installed.
+- **API Keys**: You will need a `FIRECRAWL_API_KEY` and a `GEMINI_API_KEY`.
+- **Supabase Account**: A PostgreSQL instance.
+
+### 2. Environment Configuration
+Create a `.env` file in the `backend/` directory:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd mining-pipeline
+
+# Prepare the backend environment
+cp backend/.env.example backend/.env
+```
+
+Edit the `backend/.env` with your credentials:
+```env
+DB_CONNECTION=pgsql
+DB_HOST=your_supabase_hostname_here
+DB_PORT=6543 # or 5432 for direct connection
+DB_DATABASE=postgres
+DB_USERNAME=your_supabase_user
+DB_PASSWORD=your_supabase_password
+DB_SSLMODE=require
+
+FIRECRAWL_API_KEY=your_firecrawl_key
+GEMINI_API_KEY=your_gemini_key
+
+QUEUE_CONNECTION=database
+DB_QUEUE=mining
+```
+
+---
+
+## 🚀 Running the Project
+
+### 1. Build and Start Containers
+```bash
+docker compose up -d --build
+```
+This will start the **API (8000)**, **Worker**, and **Frontend (4200)**.
+
+### 2. Database Migrations
+```bash
+docker exec harpia_backend php artisan migrate
+```
+
+### 3. Running Tests (Optional)
+```bash
+docker exec harpia_backend php artisan test
+```
+
+### 4. Accessing the Services
+- **Frontend Dashboard**: `http://localhost:4200`
+- **API Health Check**: `http://localhost:8000/up`
+
+### 5. Basic Usage Example
+Trigger the pipeline via CLI or Postman:
+
+**Start extraction:**
+```bash
+curl -X POST http://localhost:8000/api/companies/process \
+     -H "Content-Type: application/json" \
+     -d '{"companies": "BHP, Vale"}'
+```
+
+**Check results:**
+```bash
+curl http://localhost:8000/api/companies
+```
+
+---
+
+## 🔄 Project Lifecycle
+
+| Action | Command | Description |
+| :--- | :--- | :--- |
+| **Stop** | `docker compose stop` | Standard stop (fast). |
+| **Start** | `docker compose start` | Resume after stop. |
+| **Down** | `docker compose down` | Remove containers/networks. |
+| **Logs** | `docker compose logs -f queue` | View real-time AI processing. |
+| **Fresh Start** | `docker compose up -d --build` | Rebuild after file changes. |
+
+### Dependencies
+The Docker environment handles everything. To manually update PHP packages:
+```bash
+docker exec harpia_backend composer install
+```
