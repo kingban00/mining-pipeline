@@ -67,11 +67,6 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
                 ->once()
                 ->with($companyName, $dummyMarkdown)
                 ->andReturn($dummyExtractedData);
-
-            $mock->shouldReceive('generateEmbedding')
-                ->once()
-                ->with($dummyMarkdown)
-                ->andReturn(array_fill(0, 768, 0.1)); // Dummy vector
         });
 
         // Act
