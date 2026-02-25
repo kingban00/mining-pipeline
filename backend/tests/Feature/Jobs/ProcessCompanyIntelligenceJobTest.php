@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Services\FirecrawlService;
 use App\Services\GeminiService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Cache;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -15,6 +16,12 @@ use PHPUnit\Framework\Attributes\Test;
 class ProcessCompanyIntelligenceJobTest extends TestCase
 {
     use DatabaseTransactions;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Cache::flush();
+    }
 
     #[Test]
     public function it_orchestrates_the_pipeline_and_saves_data_to_the_database()
@@ -60,6 +67,11 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
                 ->once()
                 ->with($companyName, $dummyMarkdown)
                 ->andReturn($dummyExtractedData);
+
+            $mock->shouldReceive('generateEmbedding')
+                ->once()
+                ->with($dummyMarkdown)
+                ->andReturn(array_fill(0, 768, 0.1)); // Dummy vector
         });
 
         // Act
@@ -138,5 +150,41 @@ class ProcessCompanyIntelligenceJobTest extends TestCase
         $job->handle($firecrawlMock, $geminiMock);
 
         $this->assertTrue(true);
+    }
+
+    #[Test]
+    public function it_uses_cache_for_firecrawl_context_if_available()
+    {
+        $companyName = 'Cached Mine';
+        $cacheKey = 'firecrawl_markdown_' . \Illuminate\Support\Str::slug($companyName);
+        $cachedMarkdown = 'Cached markdown context';
+
+        // Set the cache
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $cachedMarkdown, 60);
+
+        $dummyExtractedData = [
+            'official_name' => 'Cached Mine Ltd',
+            'is_mining_sector' => true,
+            'leadership' => [],
+            'assets' => []
+        ];
+
+        // Firecrawl should NEVER be called
+        $firecrawlMock = $this->mock(FirecrawlService::class, function (MockInterface $mock) {
+            $mock->shouldReceive('getCompanyContext')->never();
+        });
+
+        // Gemini SHOULD be called with the cached markdown
+        $geminiMock = $this->mock(GeminiService::class, function (MockInterface $mock) use ($companyName, $cachedMarkdown, $dummyExtractedData) {
+            $mock->shouldReceive('extractIntelligence')
+                ->once()
+                ->with($companyName, $cachedMarkdown)
+                ->andReturn($dummyExtractedData);
+        });
+
+        $job = new ProcessCompanyIntelligenceJob($companyName);
+        $job->handle($firecrawlMock, $geminiMock);
+
+        $this->assertDatabaseHas('companies', ['name' => 'Cached Mine Ltd']);
     }
 }

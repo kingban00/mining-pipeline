@@ -14,6 +14,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class ProcessCompanyIntelligenceJob implements ShouldQueue
 {
@@ -24,6 +26,8 @@ class ProcessCompanyIntelligenceJob implements ShouldQueue
     // Retry configurations for resilience
     public int $tries = 3;
     public int $timeout = 300; // 5 minutes max per company
+
+    public array $backoff = [60, 120];
 
     /**
      * Create a new job instance.
@@ -49,7 +53,12 @@ class ProcessCompanyIntelligenceJob implements ShouldQueue
         }
 
         // 1. Ingestion (Search & Scrape)
-        $markdownContext = $firecrawlService->getCompanyContext($this->companyName);
+        $cacheKey = 'firecrawl_markdown_' . Str::slug($this->companyName);
+
+        $markdownContext = Cache::remember($cacheKey, now()->addHours(2), function () use ($firecrawlService) {
+            Log::info("Fetching new context from Firecrawl for: {$this->companyName}");
+            return $firecrawlService->getCompanyContext($this->companyName);
+        });
 
         // 2. Intelligence (Extraction to JSON)
         $structuredData = $geminiService->extractIntelligence($this->companyName, $markdownContext);
@@ -58,7 +67,7 @@ class ProcessCompanyIntelligenceJob implements ShouldQueue
         $officialName = $structuredData['official_name'] ?? $this->companyName;
         $isMining = $structuredData['is_mining_sector'] ?? false;
 
-        // Logic check: Even if IA says it is mining, if it found absolutely nothing, we treat as rejected for now
+        // Logic check: Even if AI says it is mining, if it found absolutely nothing, we treat as rejected for now
         $hasData = !empty($structuredData['leadership']) || !empty($structuredData['assets']);
 
         if (!$isMining || !$hasData) {
