@@ -35,6 +35,18 @@ class FirecrawlServiceTest extends TestCase
         $this->assertStringContainsString('--- LEADERSHIP CONTEXT ---', $context);
         $this->assertStringContainsString('John Doe - CEO', $context);
         $this->assertStringContainsString('--- ASSETS CONTEXT ---', $context);
+
+        // Verify that 2 calls were made to Firecrawl (one for leadership, one for assets)
+        // And verify they use the new increased limits (3 and 4)
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+            return $request->url() === 'https://api.firecrawl.dev/v1/search' &&
+                $request['limit'] === 3;
+        });
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+            return $request->url() === 'https://api.firecrawl.dev/v1/search' &&
+                $request['limit'] === 4;
+        });
     }
 
     #[Test]

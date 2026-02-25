@@ -66,6 +66,13 @@ class GeminiServiceTest extends TestCase
         $this->assertEquals('Mike Henry', $result['leadership'][0]['name']);
         $this->assertEquals('Escondida', $result['assets'][0]['name']);
         $this->assertEquals(-24.266, $result['assets'][0]['latitude']);
+
+        // Verify that the prompt sent to Gemini contains the "EXHAUSTIVE" instruction
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+            $prompt = $request['contents'][0]['parts'][0]['text'];
+            return str_contains($prompt, 'BE EXHAUSTIVE') &&
+                str_contains($prompt, 'EVERY SINGLE mining asset');
+        });
     }
 
     #[Test]
@@ -124,5 +131,30 @@ class GeminiServiceTest extends TestCase
 
         // Act
         $service->extractIntelligence('BHP', 'Some context');
+    }
+
+    #[Test]
+    public function it_truncates_extremely_large_contexts_before_sending_to_gemini()
+    {
+        // 80,001 characters
+        $largeContext = str_repeat('a', 80001);
+
+        $mockedGeminiResponse = [
+            'candidates' => [['content' => ['parts' => [['text' => json_encode(['leadership' => [], 'assets' => []])]]]]]
+        ];
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response($mockedGeminiResponse, 200)
+        ]);
+
+        $service = new GeminiService();
+        $service->extractIntelligence('BHP', $largeContext);
+
+        // Verify that the prompt sent to Gemini contains the truncation message
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) {
+            $prompt = $request['contents'][0]['parts'][0]['text'];
+            return str_contains($prompt, '[CONTEXT TRUNCATED FOR TOKEN SAVING]') &&
+                mb_strlen($prompt) < 85000; // Roughly trunc limit + prompt size
+        });
     }
 }
