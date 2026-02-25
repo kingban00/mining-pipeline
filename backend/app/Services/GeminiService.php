@@ -8,7 +8,12 @@ use Illuminate\Support\Facades\Log;
 class GeminiService
 {
     protected string $apiKey;
-    protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+
+    /**
+     * Gemini 3 Flash Preview (February 2026):
+     * Frontier intelligence with Flash-level speed.
+     */
+    protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
 
     public function __construct()
     {
@@ -45,10 +50,10 @@ class GeminiService
                 ]
             ]);
 
-            // Resilience: If the API goes down or exceeds quota, fail gracefully
+            // Resilience: If the API goes down or exceeds quota, throw an exception to trigger a retry
             if ($response->failed()) {
                 Log::error("Gemini API request failed for {$companyName}.", ['response' => $response->body()]);
-                return $this->getEmptyResponse();
+                throw new \Exception("Gemini API request failed with status {$response->status()} for {$companyName}.");
             }
 
             // Extracts the JSON string from the Gemini response structure
@@ -56,7 +61,7 @@ class GeminiService
 
             if (!$jsonString) {
                 Log::warning("Gemini returned empty text for {$companyName}.");
-                return $this->getEmptyResponse();
+                throw new \Exception("Gemini returned empty text for {$companyName}.");
             }
 
             // Decodes the JSON string into an associative PHP Array
@@ -65,14 +70,15 @@ class GeminiService
             // Validates if the decoded JSON has the minimum keys expected by the database
             if (!$extractedData || !isset($extractedData['leadership']) || !isset($extractedData['assets'])) {
                 Log::warning("Gemini returned invalid JSON structure for {$companyName}.", ['raw' => $jsonString]);
-                return $this->getEmptyResponse();
+                throw new \Exception("Gemini returned invalid JSON structure for {$companyName}.");
             }
 
             return $extractedData;
 
         } catch (\Exception $e) {
             Log::error("Exception connecting to Gemini for {$companyName}. Error: " . $e->getMessage());
-            return $this->getEmptyResponse();
+            // Re-throw the exception so the caller (Job) can handle retries
+            throw $e;
         }
     }
 
@@ -94,6 +100,7 @@ CRITICAL RULES:
 2. If data for a specific field is missing in the context, use null (for strings/numbers) or an empty array [].
 3. For the "technical_summary" in leadership, you MUST provide exactly 3 bullet points focusing on project experience and operational history.
 4. For coordinates, estimate or extract approximate latitude and longitude as numbers (decimals) if the exact location is mentioned.
+5. DOMAIN VALIDATION: ONLY extract data if the company explicitly operates in the mining, resources, or exploration sectors. Otherwise, return empty arrays for both leadership and assets to prevent false positives.
 
 REQUIRED JSON SCHEMA:
 {
