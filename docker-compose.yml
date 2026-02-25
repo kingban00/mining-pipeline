@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # API Rest do Laravel
   backend:
@@ -7,13 +5,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: harpia_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/var/www/html
     env_file:
       - ./backend/.env
-    # Roda o servidor de desenvolvimento nativo do Laravel
     command: php artisan serve --host=0.0.0.0 --port=8000
     networks:
       - harpia_network
@@ -24,12 +22,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: harpia_queue
+    restart: unless-stopped
     volumes:
       - ./backend:/var/www/html
     env_file:
       - ./backend/.env
-    # Escuta a fila para disparar as chamadas do Firecrawl e Gemini
-    command: php artisan queue:work --tries=3 --timeout=120
+    # Aumentado o timeout para 300 para suportar o tempo de resposta das IAs
+    # command: php artisan queue:work --tries=3 --timeout=300 (Production)
+    command: php artisan queue:work --queue=mining --tries=3 --timeout=300
     depends_on:
       - backend
     networks:
