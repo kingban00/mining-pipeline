@@ -57,7 +57,10 @@ class CompanyIntelligenceControllerTest extends TestCase
     public function it_lists_companies_with_pagination()
     {
         for ($i = 1; $i <= 15; $i++) {
-            Company::create(['name' => "Company " . str_pad($i, 2, '0', STR_PAD_LEFT)]);
+            Company::create([
+                'name' => "Company " . str_pad($i, 2, '0', STR_PAD_LEFT),
+                'status' => 'completed'
+            ]);
         }
 
         $response = $this->getJson('/api/companies');
@@ -71,8 +74,8 @@ class CompanyIntelligenceControllerTest extends TestCase
     #[Test]
     public function it_filters_companies_by_search_query()
     {
-        Company::create(['name' => 'BHP Group']);
-        Company::create(['name' => 'Rio Tinto']);
+        Company::create(['name' => 'BHP Group', 'status' => 'completed']);
+        Company::create(['name' => 'Rio Tinto', 'status' => 'completed']);
 
         $response = $this->getJson('/api/companies?search=BHP');
 
@@ -85,7 +88,7 @@ class CompanyIntelligenceControllerTest extends TestCase
     #[Test]
     public function it_shows_company_details_with_relations()
     {
-        $company = Company::create(['name' => 'Tech Mining']);
+        $company = Company::create(['name' => 'Tech Mining', 'status' => 'completed']);
 
         $company->executives()->create([
             'name' => 'Jane Doe',
@@ -152,7 +155,7 @@ class CompanyIntelligenceControllerTest extends TestCase
     #[Test]
     public function it_returns_empty_pagination_for_no_search_matches()
     {
-        Company::create(['name' => 'Vale']);
+        Company::create(['name' => 'Vale', 'status' => 'completed']);
         $response = $this->getJson('/api/companies?search=NonExistent');
 
         $response->assertStatus(200)
