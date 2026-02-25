@@ -131,8 +131,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.isPipelineActive.set(true);
 
-    // Poll every 8 seconds for status updates
-    this.pollSubscription = interval(8000).subscribe(() => {
+    // Poll every 15 seconds for status updates
+    this.pollSubscription = interval(15000).subscribe(() => {
       this.companyService.getQueueStatus().subscribe({
         next: (status) => {
           if (!status.is_processing) {
